@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B3A5C">
+<title>LLUVIA-LORENZITO</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cielo:#1B3A5C; --fondo:#E5ECF2; --papel:#F5F8FA; --linea:#93ADC4;
+  --gota:#2C78C4; --tinta:#16304A; --suave:#56708A;
+  --bajo:#3E8E5E; --medio:#D19A22; --alto:#2C5FB8;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --fondo:#0F2233; --papel:#162E44; --tinta:#E3ECF2; --suave:#9DB3C6; --linea:#3D5E7A; --alto:#5B93E8;
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font:16px/1.45 "Source Sans 3",system-ui,sans-serif;min-height:100%}
+header{background:var(--cielo);color:#F1F5F8;padding:18px 18px 22px;position:relative;overflow:hidden}
+header svg.nube{position:absolute;right:-8px;top:8px;width:150px;opacity:.16}
+h1{font:700 2.2rem/1 "Barlow Condensed",sans-serif;letter-spacing:.05em;margin:0}
+h1 small{display:block;font:500 .95rem/1.3 "Source Sans 3",sans-serif;letter-spacing:0;opacity:.85;margin-top:4px}
+.lugar{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.lugar b{font:600 1.25rem "Barlow Condensed",sans-serif;letter-spacing:.02em}
+.lugar button{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:8px;padding:5px 10px;font:600 .85rem "Source Sans 3",sans-serif;cursor:pointer}
+.estado{font-size:.85rem;opacity:.85;margin-top:8px}
+.buscar{display:none;gap:8px;margin-top:10px}
+.buscar.ver{display:flex}
+.buscar input{flex:1;min-width:0;border:none;border-radius:8px;padding:9px 11px;font:inherit}
+.res{background:var(--papel);color:var(--tinta);border-radius:10px;margin-top:6px;overflow:hidden}
+.res button{display:block;width:100%;text-align:left;border:none;background:none;padding:10px 12px;font:inherit;color:inherit;border-bottom:1px solid var(--linea);cursor:pointer}
+main{max-width:640px;margin:0 auto;padding:16px}
+.dias{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.dias::-webkit-scrollbar{display:none}
+.dia{flex:0 0 auto;min-width:74px;border:2px solid var(--linea);background:var(--papel);color:var(--tinta);border-radius:10px;padding:8px 6px;text-align:center;cursor:pointer;font:inherit}
+.dia b{display:block;font:600 1.05rem/1.1 "Barlow Condensed",sans-serif}
+.dia span{font-size:.8rem;color:var(--suave)}
+.dia .mini{display:block;margin-top:4px;font:600 .9rem "Barlow Condensed",sans-serif}
+.dia[aria-pressed="true"]{border-color:var(--cielo);background:var(--cielo);color:#fff}
+.dia[aria-pressed="true"] span{color:#cfdde8}
+.dia:focus-visible,button:focus-visible{outline:3px solid var(--medio);outline-offset:2px}
+.tabla{margin-top:16px;background:var(--papel);border-radius:14px;overflow:hidden;border:1px solid var(--linea)}
+.tabla h2{font:600 1.35rem/1.2 "Barlow Condensed",sans-serif;margin:0;padding:14px 16px 4px}
+.tabla p.sub{margin:0;padding:0 16px 10px;color:var(--suave);font-size:.9rem}
+table{width:100%;border-collapse:collapse}
+th,td{padding:11px 14px;text-align:left}
+thead th{font:600 1rem "Barlow Condensed",sans-serif;letter-spacing:.03em;border-bottom:2px solid var(--linea);color:var(--gota)}
+tbody td{border-bottom:1px solid color-mix(in srgb,var(--linea) 45%,transparent)}
+td.franja b{display:block;font-weight:600}
+td.franja span{font-size:.8rem;color:var(--suave)}
+td.num{font:700 1.55rem/1 "Barlow Condensed",sans-serif;width:28%}
+td.num small{display:block;height:5px;border-radius:3px;margin-top:6px;background:var(--linea)}
+td.num small i{display:block;height:100%;border-radius:3px}
+td.mm{font:700 1.35rem/1 "Barlow Condensed",sans-serif;width:28%}
+td.mm em{font:500 .8rem "Source Sans 3",sans-serif;font-style:normal;color:var(--suave)}
+tr.total td{background:var(--cielo);color:#fff;border:none}
+tr.total td.num{font-size:2.1rem}
+tr.total td.franja span,tr.total td.mm em{color:#cfdde8}
+.horas{margin-top:14px;background:var(--papel);border-radius:14px;border:1px solid var(--linea);padding:4px 16px 12px}
+.horas summary{cursor:pointer;font:600 1.1rem "Barlow Condensed",sans-serif;padding:10px 0}
+.horas table td{padding:6px 4px;font-size:.95rem}
+.horas table td:nth-child(n+2){text-align:right;font-weight:600}
+.leyenda{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--suave);margin:12px 2px 0}
+.leyenda i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.acciones{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.btn{border:none;border-radius:10px;padding:11px 16px;font:600 1rem "Source Sans 3",sans-serif;background:var(--cielo);color:#fff;cursor:pointer}
+.btn.sec{background:transparent;color:var(--tinta);border:2px solid var(--linea)}
+.nota{font-size:.82rem;color:var(--suave);margin-top:18px;line-height:1.5}
+footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px;font-weight:600}
+.toast{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translate(-50%,-150%);background:var(--cielo);color:#fff;padding:11px 18px;border-radius:12px;box-shadow:0 6px 20px rgba(27,58,92,.35);transition:transform .35s;z-index:20;font-weight:600;max-width:92%}
+.toast.ver{transform:translate(-50%,0)}
+.cargando{padding:40px 16px;text-align:center;color:var(--suave)}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <svg class="nube" viewBox="0 0 200 140" aria-hidden="true"><path d="M50 80a30 30 0 0 1 8-59 40 40 0 0 1 76 6 28 28 0 0 1 16 53z" fill="#fff"/><g stroke="#fff" stroke-width="6" stroke-linecap="round"><path d="M70 98l-8 22"/><path d="M105 98l-8 22"/><path d="M140 98l-8 22"/></g></svg>
+  <h1>LLUVIA-LORENZITO<small>Probabilidad y cantidad de lluvia donde estés</small></h1>
+  <div class="lugar"><b id="lugar">Buscando tu ubicación…</b>
+    <button id="btnGps">📍 Mi ubicación</button><button id="btnBuscar">🔍 Otro sitio</button></div>
+  <div class="buscar" id="buscar"><input id="q" type="search" placeholder="Escribe un pueblo o ciudad" autocomplete="off"><button class="btn" id="btnIr">Buscar</button></div>
+  <div id="resultados"></div>
+  <div class="estado" id="estado">Cargando previsión…</div>
+</header>
+<main>
+  <div class="dias" id="dias" role="group" aria-label="Día"></div>
+  <section class="tabla" id="tabla"><div class="cargando">Consultando la previsión…</div></section>
+  <details class="horas" id="horas" hidden><summary>Hora a hora</summary><div id="horasBody"></div></details>
+  <div class="leyenda">
+    <span><i style="background:var(--bajo)"></i>Poco probable (menos de 30 %)</span>
+    <span><i style="background:var(--medio)"></i>Posible (30–60 %)</span>
+    <span><i style="background:var(--alto)"></i>Muy probable (más de 60 %)</span>
+  </div>
+  <div class="acciones">
+    <button class="btn" id="btnActualizar">Actualizar previsión</button>
+    <button class="btn sec" id="btnInstalar" hidden>Instalar en el móvil</button>
+  </div>
+  <p class="nota">La probabilidad de cada franja es la de que llueva en algún momento de ese tramo. La cantidad va en milímetros: 1 mm es 1 litro por metro cuadrado. Menos de 1 mm es llovizna; más de 10 mm en un tramo es lluvia fuerte. Estimación orientativa, no oficial.</p>
+</main>
+<footer>LLUVIA-LORENZITO by Lorenzo<br>© 2026 Lorenzo Moreno Villalba. Todos los derechos reservados.<br><span id="ver"></span></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const APP_VERSION = '2026.10.03-1';
+const DEF = {lat:37.6057, lon:-0.9862, nombre:'Cartagena'};
+const MODELOS = ['ecmwf_ifs025','icon_seamless','gfs_seamless','meteofrance_seamless'];
+const FRANJAS = [
+  {n:'Madrugada', h:'00:00 – 06:00', d:0},
+  {n:'Mañana',    h:'06:00 – 12:00', d:6},
+  {n:'Tarde',     h:'12:00 – 18:00', d:12},
+  {n:'Noche',     h:'18:00 – 24:00', d:18}
+];
+const DIAS_SEM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+let LUGAR = null, DATOS = null, RES = [], diaSel = 0;
+
+const $ = id => document.getElementById(id);
+function toast(msg, ms=3500){ const t=$('toast'); t.textContent=msg; t.classList.add('ver'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('ver'), ms); }
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const color=p=> p>60?'var(--alto)':p>=30?'var(--medio)':'var(--bajo)';
+const mmTxt=v=> v==null?'–': v<0.1?'0': v<10?v.toFixed(1).replace('.',','):Math.round(v)+'';
+function guardar(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
+function leer(k){ try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;} }
+
+/* ---------- Ubicación ---------- */
+function gps(){
+  return new Promise(res=>{
+    if(!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude, lon:p.coords.longitude}), ()=>res(null), {enableHighAccuracy:false, timeout:10000, maximumAge:600000});
+  });
+}
+async function nombreDe(lat,lon){
+  try{
+    const j=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`).then(r=>r.json());
+    return j.city || j.locality || j.principalSubdivision || 'Tu ubicación';
+  }catch(e){ return 'Tu ubicación'; }
+}
+async function usarGps(avisar){
+  $('lugar').textContent='Buscando tu ubicación…';
+  const p=await gps();
+  if(p){ LUGAR={...p, nombre:await nombreDe(p.lat,p.lon), gps:true}; }
+  else { LUGAR = leer('lluvia_lugar') || DEF; if(avisar) toast('No se pudo obtener tu ubicación'); }
+  guardar('lluvia_lugar', LUGAR);
+  await iniciar(false);
+}
+async function buscar(){
+  const q=$('q').value.trim(); if(!q) return;
+  $('resultados').innerHTML='';
+  try{
+    const j=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=es`).then(r=>r.json());
+    const L=j.results||[];
+    if(!L.length){ $('resultados').innerHTML='<div class="res"><button disabled>No se ha encontrado ese sitio</button></div>'; return; }
+    $('resultados').innerHTML='<div class="res">'+L.map((r,i)=>`<button data-i="${i}">${r.name}${r.admin2?', '+r.admin2:''}${r.admin1&&r.admin1!==r.admin2?' ('+r.admin1+')':''}</button>`).join('')+'</div>';
+    $('resultados').querySelectorAll('button[data-i]').forEach(b=>b.onclick=async()=>{
+      const r=L[+b.dataset.i]; LUGAR={lat:r.latitude, lon:r.longitude, nombre:r.name, gps:false};
+      guardar('lluvia_lugar', LUGAR); $('resultados').innerHTML=''; $('buscar').classList.remove('ver'); $('q').value='';
+      diaSel=0; await iniciar(false);
+    });
+  }catch(e){ toast('Sin conexión para buscar'); }
+}
+
+/* ---------- Datos (varios modelos) ---------- */
+async function cargar(){
+  const base=`https://api.open-meteo.com/v1/forecast?latitude=${LUGAR.lat}&longitude=${LUGAR.lon}&forecast_days=7&timezone=auto`;
+  const [a,b]=await Promise.allSettled([
+    fetch(base+'&hourly=precipitation_probability,precipitation').then(r=>{if(!r.ok)throw 0;return r.json();}),
+    fetch(base+'&hourly=precipitation&models='+MODELOS.join(',')).then(r=>{if(!r.ok)throw 0;return r.json();})
+  ]);
+  if(a.status!=='fulfilled' && b.status!=='fulfilled') throw new Error('sin datos');
+  const horas=(a.value||b.value).hourly.time;
+  const probBase=a.status==='fulfilled'?a.value.hourly.precipitation_probability:null;
+  const mmBase=a.status==='fulfilled'?a.value.hourly.precipitation:null;
+  let series=[];
+  if(b.status==='fulfilled'){ series=MODELOS.map(m=>b.value.hourly['precipitation_'+m]).filter(s=>s&&s.some(v=>v!=null)); }
+  if(mmBase) series.push(mmBase);
+  const prob=[], mm=[];
+  for(let i=0;i<horas.length;i++){
+    const v=series.map(s=>s[i]).filter(x=>x!=null);
+    const media=v.length? v.reduce((p,q)=>p+q,0)/v.length : null;
+    const conLluvia=v.length? 100*v.filter(x=>x>=0.2).length/v.length : null;
+    const pb=probBase?probBase[i]:null;
+    let p = pb!=null && conLluvia!=null ? 0.6*pb+0.4*conLluvia : (pb!=null?pb:conLluvia);
+    prob.push(p==null?null:Math.round(clamp(p,0,100)));
+    mm.push(media);
+  }
+  DATOS={horas, prob, mm, n:series.length};
+  guardar('lluvia_datos',{t:Date.now(), lugar:LUGAR, d:DATOS});
+}
+
+/* ---------- Cálculo ---------- */
+function calcular(){
+  RES=[]; const porDia={};
+  DATOS.horas.forEach((h,i)=>{ const d=h.slice(0,10); (porDia[d]=porDia[d]||[]).push(i); });
+  Object.keys(porDia).sort().forEach(fecha=>{
+    const idx=porDia[fecha]; if(idx.length<24) return;
+    const fr=FRANJAS.map(F=>{
+      const hs=idx.slice(F.d,F.d+6);
+      const ps=hs.map(i=>DATOS.prob[i]).filter(v=>v!=null);
+      const ms=hs.map(i=>DATOS.mm[i]).filter(v=>v!=null);
+      if(!ps.length) return {p:null,mm:null};
+      const max=Math.max(...ps), resto=ps.filter(v=>v!==max), seg=resto.length?Math.max(...resto):0;
+      const p=Math.round(Math.min(99, max + (100-max)*0.15*(seg/100)));
+      return {p, mm: ms.reduce((a,b)=>a+b,0)};
+    });
+    const vals=fr.map(f=>f.p).filter(v=>v!=null).sort((a,b)=>b-a);
+    const total=vals.length?Math.round(Math.min(99, vals[0]+(100-vals[0])*0.25*((vals[1]||0)/100))):null;
+    const mmTot=fr.reduce((a,f)=>a+(f.mm||0),0);
+    RES.push({fecha, fr, total, mmTot, idx});
+  });
+  const hoy=new Date().toLocaleDateString('sv-SE');
+  RES=RES.filter(d=>d.fecha>=hoy);
+  if(diaSel>=RES.length) diaSel=0;
+}
+
+/* ---------- Pintar ---------- */
+function fechaTxt(f,largo){
+  const d=new Date(f+'T12:00:00');
+  return largo?`${['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`:`${d.getDate()} ${MESES[d.getMonth()]}`;
+}
+function celdaP(p){ if(p==null) return '<td class="num">–</td>'; return `<td class="num" style="color:${color(p)}">${p} %<small><i style="width:${p}%;background:${color(p)}"></i></small></td>`; }
+function celdaMM(v){ return `<td class="mm">${mmTxt(v)} <em>mm</em></td>`; }
+function pintar(){
+  const hoy=new Date().toLocaleDateString('sv-SE');
+  $('dias').innerHTML=RES.map((d,i)=>{
+    const dt=new Date(d.fecha+'T12:00:00');
+    return `<button class="dia" aria-pressed="${i===diaSel}" data-i="${i}"><b>${d.fecha===hoy?'Hoy':DIAS_SEM[dt.getDay()]}</b><span>${fechaTxt(d.fecha)}</span><span class="mini" style="color:${d.total==null?'inherit':(i===diaSel?'#fff':color(d.total))}">${d.total==null?'–':d.total+' %'}</span></button>`;
+  }).join('');
+  $('dias').querySelectorAll('.dia').forEach(b=>b.onclick=()=>{diaSel=+b.dataset.i; pintar();});
+  const d=RES[diaSel]; if(!d){ $('tabla').innerHTML='<div class="cargando">Sin datos.</div>'; return; }
+  let filas=FRANJAS.map((F,i)=>`<tr><td class="franja"><b>${F.n}</b><span>${F.h}</span></td>${celdaP(d.fr[i].p)}${celdaMM(d.fr[i].mm)}</tr>`).join('');
+  filas+=`<tr class="total"><td class="franja"><b>Día completo</b><span>${fechaTxt(d.fecha)}</span></td><td class="num">${d.total==null?'–':d.total+' %'}</td>${celdaMM(d.mmTot)}</tr>`;
+  $('tabla').innerHTML=`<h2>${LUGAR.nombre}, ${fechaTxt(d.fecha,true)}</h2><p class="sub">Probabilidad de lluvia y cantidad prevista por franjas</p>
+    <table><thead><tr><th>Franja</th><th>Probabilidad</th><th>Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`;
+  $('horasBody').innerHTML='<table>'+d.idx.map(i=>{const p=DATOS.prob[i];return `<tr><td>${DATOS.horas[i].slice(11,16)}</td><td style="color:${p==null?'inherit':color(p)}">${p==null?'–':p+' %'}</td><td>${mmTxt(DATOS.mm[i])} mm</td></tr>`;}).join('')+'</table>';
+  $('horas').hidden=false;
+}
+
+async function iniciar(forzar){
+  $('lugar').textContent=LUGAR.nombre+(LUGAR.gps?' 📍':'');
+  $('estado').textContent='Cargando previsión…';
+  try{
+    await cargar(); calcular(); pintar();
+    const ahora=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    $('estado').textContent=`Actualizada a las ${ahora} · ${DATOS.n} modelos combinados`;
+    if(forzar) toast('Previsión actualizada');
+  }catch(e){
+    const c=leer('lluvia_datos');
+    if(c&&c.d){ DATOS=c.d; LUGAR=c.lugar||LUGAR; $('lugar').textContent=LUGAR.nombre; calcular(); pintar();
+      $('estado').textContent='Sin conexión: mostrando la última previsión guardada'; }
+    else { $('estado').textContent='No se pudo descargar la previsión'; $('tabla').innerHTML='<div class="cargando">Sin conexión. Pulsa «Actualizar previsión» cuando tengas datos.</div>'; }
+  }
+}
+$('btnActualizar').onclick=()=> LUGAR&&LUGAR.gps ? usarGps(false).then(()=>toast('Previsión actualizada')) : iniciar(true);
+$('btnGps').onclick=()=>{diaSel=0; usarGps(true);};
+$('btnBuscar').onclick=()=>{ $('buscar').classList.toggle('ver'); if($('buscar').classList.contains('ver')) $('q').focus(); };
+$('btnIr').onclick=buscar;
+$('q').addEventListener('keydown',e=>{ if(e.key==='Enter') buscar(); });
+
+/* ---------- Versión y aviso ---------- */
+$('ver').textContent='v'+APP_VERSION;
+try{ const prev=localStorage.getItem('lluvia_ver'); if(prev&&prev!==APP_VERSION) setTimeout(()=>toast('LLUVIA-LORENZITO se ha actualizado',4500),600); localStorage.setItem('lluvia_ver',APP_VERSION); }catch(e){}
+
+/* ---------- Instalación ---------- */
+let instalar=null;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault(); instalar=e; $('btnInstalar').hidden=false;});
+$('btnInstalar').onclick=async()=>{ if(!instalar) return; instalar.prompt(); await instalar.userChoice; instalar=null; $('btnInstalar').hidden=true; };
+addEventListener('appinstalled',()=>toast('LLUVIA-LORENZITO instalada'));
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+
+/* ---------- Arranque ---------- */
+(async()=>{
+  const g=leer('lluvia_lugar');
+  if(g && !g.gps){ LUGAR=g; await iniciar(false); }
+  else await usarGps(false);
+})();
+</script>
+</body>
+</html>
