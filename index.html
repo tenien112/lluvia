@@ -36,6 +36,8 @@ h1 small{display:block;font:500 .95rem/1.3 "Open Sans",Arial,sans-serif;letter-s
 .lugar b{font:600 1.25rem "Open Sans",Arial,sans-serif;letter-spacing:.02em}
 .lugar button{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;border-radius:8px;padding:5px 10px;font:600 .85rem "Open Sans",Arial,sans-serif;cursor:pointer}
 .estado{font-size:.85rem;opacity:.85;margin-top:8px}
+.ahora{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font:700 1.5rem "Open Sans",Arial,sans-serif}
+.ahora small{font:500 .8rem "Open Sans",Arial,sans-serif;opacity:.85;margin-left:5px}
 .buscar{display:none;gap:8px;margin-top:10px}
 .buscar.ver{display:flex}
 .buscar input{flex:1;min-width:0;border:none;border-radius:8px;padding:9px 11px;font:inherit}
@@ -91,6 +93,7 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
   <h1>LLUVIA-LORENZITO<small>Probabilidad y cantidad de lluvia donde estés</small></h1>
   <div class="lugar"><b id="lugar">Buscando tu ubicación…</b>
     <button id="btnGps">📍 Mi ubicación</button><button id="btnBuscar">🔍 Otro sitio</button></div>
+  <div class="ahora" id="ahora" hidden></div>
   <div class="buscar" id="buscar"><input id="q" type="search" placeholder="Escribe un pueblo o ciudad" autocomplete="off"><button class="btn" id="btnIr">Buscar</button></div>
   <div id="resultados"></div>
   <div class="estado" id="estado">Cargando previsión…</div>
@@ -114,7 +117,7 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-const APP_VERSION = '2026.10.06-2';
+const APP_VERSION = '2026.11.10-1';
 const DEF = {lat:37.6057, lon:-0.9862, nombre:'Cartagena'};
 const MODELOS = ['ecmwf_ifs025','icon_seamless','gfs_seamless','meteofrance_seamless'];
 const FRANJAS = [
@@ -176,7 +179,7 @@ async function buscar(){
 async function cargar(){
   const base=`https://api.open-meteo.com/v1/forecast?latitude=${LUGAR.lat}&longitude=${LUGAR.lon}&forecast_days=7&timezone=auto`;
   const [a,b]=await Promise.allSettled([
-    fetch(base+'&hourly=precipitation_probability,precipitation').then(r=>{if(!r.ok)throw 0;return r.json();}),
+    fetch(base+'&hourly=precipitation_probability,precipitation&current=temperature_2m').then(r=>{if(!r.ok)throw 0;return r.json();}),
     fetch(base+'&hourly=precipitation&models='+MODELOS.join(',')).then(r=>{if(!r.ok)throw 0;return r.json();})
   ]);
   if(a.status!=='fulfilled' && b.status!=='fulfilled') throw new Error('sin datos');
@@ -196,9 +199,23 @@ async function cargar(){
     prob.push(p==null?null:Math.round(clamp(p,0,100)));
     mm.push(media);
   }
-  DATOS={horas, prob, mm, n:series.length};
+  const ok=a.status==='fulfilled'?a.value:null;
+  const temp=ok&&ok.current&&ok.current.temperature_2m!=null?ok.current.temperature_2m:null;
+  DATOS={horas, prob, mm, n:series.length, temp, tTemp:Date.now(), tz:(ok||b.value).timezone||null};
   guardar('lluvia_datos',{t:Date.now(), lugar:LUGAR, d:DATOS});
 }
+
+/* ---------- Ahora mismo en el lugar consultado: temperatura y hora local ---------- */
+function pintarAhora(){
+  const el=$('ahora'); if(!DATOS){ el.hidden=true; return; }
+  let hora='';
+  try{ if(DATOS.tz) hora=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:DATOS.tz}); }catch(e){}
+  // la temperatura solo se enseña si es reciente (menos de 1 hora); sin conexión no se enseña una vieja
+  const t=DATOS.temp!=null && Date.now()-(DATOS.tTemp||0)<3600000 ? `<span>🌡️ ${Math.round(DATOS.temp)} °C<small>ahora</small></span>` : '';
+  const h=hora?`<span>🕐 ${hora}<small>hora en ${LUGAR.nombre}</small></span>`:'';
+  el.innerHTML=t+h; el.hidden=!(t||h);
+}
+setInterval(pintarAhora,15000);
 
 /* ---------- Cálculo ---------- */
 function calcular(){
@@ -252,13 +269,13 @@ async function iniciar(forzar){
   $('lugar').textContent=LUGAR.nombre+(LUGAR.gps?' 📍':'');
   $('estado').textContent='Cargando previsión…';
   try{
-    await cargar(); calcular(); pintar();
+    await cargar(); calcular(); pintar(); pintarAhora();
     const ahora=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
     $('estado').textContent=`Actualizada a las ${ahora} · ${DATOS.n} modelos combinados`;
     if(forzar) toast('Previsión actualizada');
   }catch(e){
     const c=leer('lluvia_datos');
-    if(c&&c.d){ DATOS=c.d; LUGAR=c.lugar||LUGAR; $('lugar').textContent=LUGAR.nombre; calcular(); pintar();
+    if(c&&c.d){ DATOS=c.d; LUGAR=c.lugar||LUGAR; $('lugar').textContent=LUGAR.nombre; calcular(); pintar(); pintarAhora();
       $('estado').textContent='Sin conexión: mostrando la última previsión guardada'; }
     else { $('estado').textContent='No se pudo descargar la previsión'; $('tabla').innerHTML='<div class="cargando">Sin conexión. Pulsa «Actualizar previsión» cuando tengas datos.</div>'; }
   }
