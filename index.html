@@ -50,6 +50,14 @@ main{max-width:640px;margin:0 auto;padding:16px}
 .dia b{display:block;font:600 1.05rem/1.1 "Open Sans",Arial,sans-serif}
 .dia span{font-size:.8rem;color:var(--suave)}
 .dia .mini{display:block;margin-top:4px;font:600 .9rem "Open Sans",Arial,sans-serif}
+.dia .tmm{display:block;margin-top:3px;font-size:.78rem;font-weight:600}
+.dia .tmm .mx{color:#C4502C}.dia .tmm .mn{color:var(--gota)}
+.dia[aria-pressed="true"] .tmm .mx,.dia[aria-pressed="true"] .tmm .mn{color:#fff}
+.temps{display:flex;gap:12px;padding:4px 16px 12px}
+.temps div{flex:1;border-radius:10px;padding:10px 12px;background:color-mix(in srgb,var(--linea) 22%,transparent)}
+.temps span{display:block;font-size:.82rem;color:var(--suave);font-weight:600}
+.temps b{font:700 1.8rem/1.1 "Open Sans",Arial,sans-serif}
+.temps .mx b{color:#C4502C}.temps .mn b{color:var(--gota)}
 .dia[aria-pressed="true"]{border-color:var(--cielo);background:var(--cielo);color:#fff}
 .dia[aria-pressed="true"] span{color:#cfdde8}
 .dia:focus-visible,button:focus-visible{outline:3px solid var(--medio);outline-offset:2px}
@@ -117,7 +125,7 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-const APP_VERSION = '2026.11.10-1';
+const APP_VERSION = '2026.11.15-1';
 const DEF = {lat:37.6057, lon:-0.9862, nombre:'Cartagena'};
 const MODELOS = ['ecmwf_ifs025','icon_seamless','gfs_seamless','meteofrance_seamless'];
 const FRANJAS = [
@@ -179,7 +187,7 @@ async function buscar(){
 async function cargar(){
   const base=`https://api.open-meteo.com/v1/forecast?latitude=${LUGAR.lat}&longitude=${LUGAR.lon}&forecast_days=7&timezone=auto`;
   const [a,b]=await Promise.allSettled([
-    fetch(base+'&hourly=precipitation_probability,precipitation&current=temperature_2m').then(r=>{if(!r.ok)throw 0;return r.json();}),
+    fetch(base+'&hourly=precipitation_probability,precipitation&current=temperature_2m&daily=temperature_2m_max,temperature_2m_min').then(r=>{if(!r.ok)throw 0;return r.json();}),
     fetch(base+'&hourly=precipitation&models='+MODELOS.join(',')).then(r=>{if(!r.ok)throw 0;return r.json();})
   ]);
   if(a.status!=='fulfilled' && b.status!=='fulfilled') throw new Error('sin datos');
@@ -201,7 +209,9 @@ async function cargar(){
   }
   const ok=a.status==='fulfilled'?a.value:null;
   const temp=ok&&ok.current&&ok.current.temperature_2m!=null?ok.current.temperature_2m:null;
-  DATOS={horas, prob, mm, n:series.length, temp, tTemp:Date.now(), tz:(ok||b.value).timezone||null};
+  const tdia={};
+  if(ok&&ok.daily&&ok.daily.time) ok.daily.time.forEach((f,i)=>{ tdia[f]={max:ok.daily.temperature_2m_max[i], min:ok.daily.temperature_2m_min[i]}; });
+  DATOS={horas, prob, mm, n:series.length, temp, tTemp:Date.now(), tz:(ok||b.value).timezone||null, tdia};
   guardar('lluvia_datos',{t:Date.now(), lugar:LUGAR, d:DATOS});
 }
 
@@ -247,19 +257,21 @@ function fechaTxt(f,largo){
   const d=new Date(f+'T12:00:00');
   return largo?`${['domingo','lunes','martes','miércoles','jueves','viernes','sábado'][d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`:`${d.getDate()} ${MESES[d.getMonth()]}`;
 }
+function tDia(f){ const t=DATOS&&DATOS.tdia&&DATOS.tdia[f]; return t&&t.max!=null&&t.min!=null?t:null; }
 function celdaP(p){ if(p==null) return '<td class="num">–</td>'; return `<td class="num" style="color:${color(p)}">${p} %<small><i style="width:${p}%;background:${color(p)}"></i></small></td>`; }
 function celdaMM(v){ return `<td class="mm">${mmTxt(v)} <em>mm</em></td>`; }
 function pintar(){
   const hoy=new Date().toLocaleDateString('sv-SE');
   $('dias').innerHTML=RES.map((d,i)=>{
-    const dt=new Date(d.fecha+'T12:00:00');
-    return `<button class="dia" aria-pressed="${i===diaSel}" data-i="${i}"><b>${d.fecha===hoy?'Hoy':DIAS_SEM[dt.getDay()]}</b><span>${fechaTxt(d.fecha)}</span><span class="mini" style="color:${d.total==null?'inherit':(i===diaSel?'#fff':color(d.total))}">${d.total==null?'–':d.total+' %'}</span></button>`;
+    const dt=new Date(d.fecha+'T12:00:00'); const tm=tDia(d.fecha);
+    return `<button class="dia" aria-pressed="${i===diaSel}" data-i="${i}"><b>${d.fecha===hoy?'Hoy':DIAS_SEM[dt.getDay()]}</b><span>${fechaTxt(d.fecha)}</span><span class="mini" style="color:${d.total==null?'inherit':(i===diaSel?'#fff':color(d.total))}">${d.total==null?'–':d.total+' %'}</span>${tm?`<span class="tmm"><span class="mx">${Math.round(tm.max)}°</span> / <span class="mn">${Math.round(tm.min)}°</span></span>`:''}</button>`;
   }).join('');
   $('dias').querySelectorAll('.dia').forEach(b=>b.onclick=()=>{diaSel=+b.dataset.i; pintar();});
   const d=RES[diaSel]; if(!d){ $('tabla').innerHTML='<div class="cargando">Sin datos.</div>'; return; }
+  const tD=tDia(d.fecha);
   let filas=FRANJAS.map((F,i)=>`<tr><td class="franja"><b>${F.n}</b><span>${F.h}</span></td>${celdaP(d.fr[i].p)}${celdaMM(d.fr[i].mm)}</tr>`).join('');
   filas+=`<tr class="total"><td class="franja"><b>Día completo</b><span>${fechaTxt(d.fecha)}</span></td><td class="num">${d.total==null?'–':d.total+' %'}</td>${celdaMM(d.mmTot)}</tr>`;
-  $('tabla').innerHTML=`<h2>${LUGAR.nombre}, ${fechaTxt(d.fecha,true)}</h2><p class="sub">Probabilidad de lluvia y cantidad prevista por franjas</p>
+  $('tabla').innerHTML=`<h2>${LUGAR.nombre}, ${fechaTxt(d.fecha,true)}</h2>${tD?`<div class="temps"><div class="mx"><span>🌡️ Máxima</span><b>${Math.round(tD.max)} °C</b></div><div class="mn"><span>🌡️ Mínima</span><b>${Math.round(tD.min)} °C</b></div></div>`:''}<p class="sub">Probabilidad de lluvia y cantidad prevista por franjas</p>
     <table><thead><tr><th>Franja</th><th>Probabilidad</th><th>Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`;
   $('horasBody').innerHTML='<table>'+d.idx.map(i=>{const p=DATOS.prob[i];return `<tr><td>${DATOS.horas[i].slice(11,16)}</td><td style="color:${p==null?'inherit':color(p)}">${p==null?'–':p+' %'}</td><td>${mmTxt(DATOS.mm[i])} mm</td></tr>`;}).join('')+'</table>';
   $('horas').hidden=false;
