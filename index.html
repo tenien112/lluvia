@@ -43,6 +43,12 @@ h1 small{display:block;font:500 .95rem/1.3 "Open Sans",Arial,sans-serif;letter-s
 .buscar input{flex:1;min-width:0;border:none;border-radius:8px;padding:9px 11px;font:inherit}
 .res{background:var(--papel);color:var(--tinta);border-radius:10px;margin-top:6px;overflow:hidden}
 .res button{display:block;width:100%;text-align:left;border:none;background:none;padding:10px 12px;font:inherit;color:inherit;border-bottom:1px solid var(--linea);cursor:pointer}
+.res .fila{display:flex;border-bottom:1px solid var(--linea)}
+.res .fila button{border-bottom:none}
+.res .fila button.est{width:auto;flex:0 0 auto;padding:10px 14px;font-size:1.25rem;line-height:1}
+.res .tit{padding:8px 12px;font-weight:700;font-size:.85rem;color:var(--suave);border-bottom:1px solid var(--linea)}
+.lugar button.fav{font-size:1.05rem;padding:3px 9px}
+html,body{overflow-x:hidden}
 main{max-width:640px;margin:0 auto;padding:16px}
 .dias{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
 .dias::-webkit-scrollbar{display:none}
@@ -100,7 +106,8 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
   <svg class="nube" viewBox="0 0 200 140" aria-hidden="true"><path d="M50 80a30 30 0 0 1 8-59 40 40 0 0 1 76 6 28 28 0 0 1 16 53z" fill="#fff"/><g stroke="#fff" stroke-width="6" stroke-linecap="round"><path d="M70 98l-8 22"/><path d="M105 98l-8 22"/><path d="M140 98l-8 22"/></g></svg>
   <h1>LLUVIA-LORENZITO<small>Probabilidad y cantidad de lluvia donde estés</small></h1>
   <div class="lugar"><b id="lugar">Buscando tu ubicación…</b>
-    <button id="btnGps">📍 Mi ubicación</button><button id="btnBuscar">🔍 Otro sitio</button></div>
+    <button class="fav" id="btnFav" aria-label="Guardar como favorito" hidden>☆</button>
+    <button id="btnGps">📍 Mi ubicación</button><button id="btnBuscar">🔍 Otro sitio</button><button id="btnFavs">⭐ Favoritos</button></div>
   <div class="ahora" id="ahora" hidden></div>
   <div class="buscar" id="buscar"><input id="q" type="search" placeholder="Escribe un pueblo o ciudad" autocomplete="off"><button class="btn" id="btnIr">Buscar</button></div>
   <div id="resultados"></div>
@@ -125,7 +132,7 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-const APP_VERSION = '2026.11.15-2';
+const APP_VERSION = '2026.11.15-3';
 const DEF = {lat:37.6057, lon:-0.9862, nombre:'Cartagena'};
 const MODELOS = ['ecmwf_ifs025','icon_seamless','gfs_seamless','meteofrance_seamless'];
 const FRANJAS = [
@@ -145,6 +152,26 @@ const color=p=> p>60?'var(--alto)':p>=30?'var(--medio)':'var(--bajo)';
 const mmTxt=v=> v==null?'–': v<0.1?'0': v<10?v.toFixed(1).replace('.',','):Math.round(v)+'';
 function guardar(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch(e){} }
 function leer(k){ try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;} }
+
+/* ---------- Favoritos ---------- */
+const favId=l=>l.lat.toFixed(2)+','+l.lon.toFixed(2);
+function favs(){ return leer('lluvia_favs')||[]; }
+function esFav(l){ return !!l && favs().some(f=>favId(f)===favId(l)); }
+function quitarFav(l){ guardar('lluvia_favs', favs().filter(f=>favId(f)!==favId(l))); }
+function ponerFav(l){ if(esFav(l)) return; const F=favs(); F.push({lat:l.lat, lon:l.lon, nombre:l.nombre}); guardar('lluvia_favs',F); }
+function pintarFav(){ const b=$('btnFav'); if(!LUGAR){b.hidden=true;return;} b.hidden=false; const s=esFav(LUGAR); b.textContent=s?'⭐':'☆'; b.setAttribute('aria-label',s?'Quitar de favoritos':'Guardar como favorito'); }
+$('btnFav').onclick=()=>{ if(esFav(LUGAR)){ quitarFav(LUGAR); toast(LUGAR.nombre+' quitado de favoritos'); } else { ponerFav(LUGAR); toast(LUGAR.nombre+' guardado en favoritos ⭐'); } pintarFav(); if($('resultados').dataset.modo==='favs') verFavs(); };
+async function irA(l){ LUGAR={lat:l.lat, lon:l.lon, nombre:l.nombre, gps:false}; guardar('lluvia_lugar',LUGAR); $('resultados').innerHTML=''; $('resultados').dataset.modo=''; $('buscar').classList.remove('ver'); $('q').value=''; diaSel=0; await iniciar(false); }
+function verFavs(){
+  const R=$('resultados');
+  if(R.dataset.modo==='favs' && verFavs._abierto){ R.innerHTML=''; R.dataset.modo=''; verFavs._abierto=false; return; }
+  const F=favs(); $('buscar').classList.remove('ver'); R.dataset.modo='favs'; verFavs._abierto=true;
+  if(!F.length){ R.innerHTML='<div class="res"><div class="tit">FAVORITOS</div><button disabled>Aún no tienes favoritos. Busca un sitio y pulsa ☆ para guardarlo.</button></div>'; return; }
+  R.innerHTML='<div class="res"><div class="tit">FAVORITOS</div>'+F.map((f,i)=>`<div class="fila"><button data-i="${i}">⭐ ${f.nombre}</button><button class="est" data-q="${i}" aria-label="Quitar ${f.nombre} de favoritos">✕</button></div>`).join('')+'</div>';
+  R.querySelectorAll('button[data-i]').forEach(b=>b.onclick=()=>{ verFavs._abierto=false; irA(F[+b.dataset.i]); });
+  R.querySelectorAll('button[data-q]').forEach(b=>b.onclick=()=>{ const f=F[+b.dataset.q]; quitarFav(f); toast(f.nombre+' quitado de favoritos'); verFavs._abierto=false; verFavs(); pintarFav(); });
+}
+$('btnFavs').onclick=()=>{ if($('resultados').dataset.modo!=='favs') verFavs._abierto=false; verFavs(); };
 
 /* ---------- Ubicación ---------- */
 function gps(){
@@ -174,12 +201,13 @@ async function buscar(){
     const j=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=es`).then(r=>r.json());
     const L=j.results||[];
     if(!L.length){ $('resultados').innerHTML='<div class="res"><button disabled>No se ha encontrado ese sitio</button></div>'; return; }
-    $('resultados').innerHTML='<div class="res">'+L.map((r,i)=>`<button data-i="${i}">${r.name}${r.admin2?', '+r.admin2:''}${r.admin1&&r.admin1!==r.admin2?' ('+r.admin1+')':''}</button>`).join('')+'</div>';
-    $('resultados').querySelectorAll('button[data-i]').forEach(b=>b.onclick=async()=>{
-      const r=L[+b.dataset.i]; LUGAR={lat:r.latitude, lon:r.longitude, nombre:r.name, gps:false};
-      guardar('lluvia_lugar', LUGAR); $('resultados').innerHTML=''; $('buscar').classList.remove('ver'); $('q').value='';
-      diaSel=0; await iniciar(false);
-    });
+    const LL=L.map(r=>({lat:r.latitude, lon:r.longitude, nombre:r.name, txt:`${r.name}${r.admin2?', '+r.admin2:''}${r.admin1&&r.admin1!==r.admin2?' ('+r.admin1+')':''}`}));
+    const dibuja=()=>{
+      $('resultados').innerHTML='<div class="res">'+LL.map((r,i)=>`<div class="fila"><button data-i="${i}">${r.txt}</button><button class="est" data-f="${i}" aria-label="Favorito">${esFav(r)?'⭐':'☆'}</button></div>`).join('')+'</div>';
+      $('resultados').querySelectorAll('button[data-i]').forEach(b=>b.onclick=()=>irA(LL[+b.dataset.i]));
+      $('resultados').querySelectorAll('button[data-f]').forEach(b=>b.onclick=()=>{ const r=LL[+b.dataset.f]; if(esFav(r)){quitarFav(r); toast(r.nombre+' quitado de favoritos');} else {ponerFav(r); toast(r.nombre+' guardado en favoritos ⭐');} dibuja(); pintarFav(); });
+    };
+    $('resultados').dataset.modo='buscar'; dibuja();
   }catch(e){ toast('Sin conexión para buscar'); }
 }
 
@@ -278,7 +306,7 @@ function pintar(){
 }
 
 async function iniciar(forzar){
-  $('lugar').textContent=LUGAR.nombre+(LUGAR.gps?' 📍':'');
+  $('lugar').textContent=LUGAR.nombre+(LUGAR.gps?' 📍':''); pintarFav();
   $('estado').textContent='Cargando previsión…';
   try{
     await cargar(); calcular(); pintar(); pintarAhora();
