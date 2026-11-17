@@ -64,6 +64,16 @@ main{max-width:640px;margin:0 auto;padding:16px}
 .temps span{display:block;font-size:.82rem;color:var(--suave);font-weight:600}
 .temps b{font:700 1.8rem/1.1 "Open Sans",Arial,sans-serif}
 .temps .mx b{color:#C4502C}.temps .mn b{color:var(--gota)}
+.dia .sol{display:block;margin-top:4px;font-size:.74rem;line-height:1.35;color:var(--suave);white-space:nowrap}
+.dia[aria-pressed="true"] .sol{color:#e2ecf4}
+.dia.sinprev{border-style:dashed}
+.nav{display:flex;gap:8px;margin-bottom:8px}
+.nav button{flex:1;border:2px solid var(--linea);background:var(--papel);color:var(--tinta);border-radius:10px;padding:7px 6px;font:600 .9rem "Open Sans",Arial,sans-serif;cursor:pointer}
+.solbox{display:flex;gap:12px;padding:0 16px 12px}
+.solbox div{flex:1;border-radius:10px;padding:10px 12px;background:color-mix(in srgb,var(--medio) 16%,transparent)}
+.solbox span{display:block;font-size:.82rem;color:var(--suave);font-weight:600}
+.solbox b{font:700 1.6rem/1.1 "Open Sans",Arial,sans-serif;color:var(--medio)}
+.durac{padding:0 16px 12px;color:var(--suave);font-size:.9rem;margin:0}
 .dia[aria-pressed="true"]{border-color:var(--cielo);background:var(--cielo);color:#fff}
 .dia[aria-pressed="true"] span{color:#cfdde8}
 .dia:focus-visible,button:focus-visible{outline:3px solid var(--medio);outline-offset:2px}
@@ -114,6 +124,7 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
   <div class="estado" id="estado">Cargando previsión…</div>
 </header>
 <main>
+  <div class="nav"><button id="btnAnt">◀ Anterior</button><button id="btnHoy">Hoy</button><button id="btnSig">Siguiente ▶</button></div>
   <div class="dias" id="dias" role="group" aria-label="Día"></div>
   <section class="tabla" id="tabla"><div class="cargando">Consultando la previsión…</div></section>
   <details class="horas" id="horas" hidden><summary>Hora a hora</summary><div id="horasBody"></div></details>
@@ -132,7 +143,7 @@ footer{text-align:center;font-size:.85rem;color:var(--suave);padding:18px 0 26px
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-const APP_VERSION = '2026.11.15-3';
+const APP_VERSION = '2026.11.17-1';
 const DEF = {lat:37.6057, lon:-0.9862, nombre:'Cartagena'};
 const MODELOS = ['ecmwf_ifs025','icon_seamless','gfs_seamless','meteofrance_seamless'];
 const FRANJAS = [
@@ -143,7 +154,7 @@ const FRANJAS = [
 ];
 const DIAS_SEM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-let LUGAR = null, DATOS = null, RES = [], diaSel = 0;
+let LUGAR = null, DATOS = null, RES = [], diaSel = 0, NDIAS = 60;
 
 const $ = id => document.getElementById(id);
 function toast(msg, ms=3500){ const t=$('toast'); t.textContent=msg; t.classList.add('ver'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('ver'), ms); }
@@ -277,8 +288,27 @@ function calcular(){
   });
   const hoy=new Date().toLocaleDateString('sv-SE');
   RES=RES.filter(d=>d.fecha>=hoy);
-  if(diaSel>=RES.length) diaSel=0;
 }
+
+/* ---------- Sol: salida y puesta (cálculo astronómico, vale para cualquier día) ---------- */
+function sol(fecha, lat, lon){
+  const R=Math.PI/180, [y,m,d]=fecha.split('-').map(Number);
+  const n=Math.ceil(Date.UTC(y,m-1,d)/86400000+2440587.5-2451545+0.0008);
+  const J=n-lon/360, M=((357.5291+0.98560028*J)%360+360)%360;
+  const C=1.9148*Math.sin(M*R)+0.02*Math.sin(2*M*R)+0.0003*Math.sin(3*M*R);
+  const L=(M+C+180+102.9372)%360;
+  const Jt=2451545+J+0.0053*Math.sin(M*R)-0.0069*Math.sin(2*L*R);
+  const dec=Math.asin(Math.sin(L*R)*Math.sin(23.4397*R));
+  const cw=(Math.sin(-0.833*R)-Math.sin(lat*R)*Math.sin(dec))/(Math.cos(lat*R)*Math.cos(dec));
+  if(cw>1) return {polar:'noche'}; if(cw<-1) return {polar:'dia'};
+  const w=Math.acos(cw)/R/360, ms=j=>new Date((j-2440587.5)*86400000);
+  return {sale:ms(Jt-w), pone:ms(Jt+w), dur:w*2*24*60};
+}
+function zona(){ return (DATOS&&DATOS.tz)||Intl.DateTimeFormat().resolvedOptions().timeZone; }
+function hhmm(t){ try{ return t.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:zona()}); }catch(e){ return t.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}); } }
+function hoyLugar(){ try{ return new Date().toLocaleDateString('sv-SE',{timeZone:zona()}); }catch(e){ return new Date().toLocaleDateString('sv-SE'); } }
+function sumaDias(f,k){ const [y,m,d]=f.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+k)).toISOString().slice(0,10); }
+function fechas(){ const h=hoyLugar(); return Array.from({length:NDIAS},(_,i)=>sumaDias(h,i)); }
 
 /* ---------- Pintar ---------- */
 function fechaTxt(f,largo){
@@ -288,22 +318,44 @@ function fechaTxt(f,largo){
 function tDia(f){ const t=DATOS&&DATOS.tdia&&DATOS.tdia[f]; return t&&t.max!=null&&t.min!=null?t:null; }
 function celdaP(p){ if(p==null) return '<td class="num">–</td>'; return `<td class="num" style="color:${color(p)}">${p} %<small><i style="width:${p}%;background:${color(p)}"></i></small></td>`; }
 function celdaMM(v){ return `<td class="mm">${mmTxt(v)} <em>mm</em></td>`; }
-function pintar(){
-  const hoy=new Date().toLocaleDateString('sv-SE');
-  $('dias').innerHTML=RES.map((d,i)=>{
-    const dt=new Date(d.fecha+'T12:00:00'); const tm=tDia(d.fecha);
-    return `<button class="dia" aria-pressed="${i===diaSel}" data-i="${i}"><b>${d.fecha===hoy?'Hoy':DIAS_SEM[dt.getDay()]}</b><span>${fechaTxt(d.fecha)}</span><span class="mini" style="color:${d.total==null?'inherit':(i===diaSel?'#fff':color(d.total))}">${d.total==null?'–':d.total+' %'}</span>${tm?`<span class="tmm"><span class="mx">${Math.round(tm.max)}°</span> / <span class="mn">${Math.round(tm.min)}°</span></span>`:''}</button>`;
+function pintarDias(){
+  const hoy=hoyLugar(), F=fechas(), cont=$('dias'), x=cont.scrollLeft;
+  cont.innerHTML=F.map((f,i)=>{
+    const dt=new Date(f+'T12:00:00'), tm=tDia(f), d=RES.find(r=>r.fecha===f), sel=i===diaSel, S=sol(f,LUGAR.lat,LUGAR.lon);
+    const st=S.polar?`<span class="sol">${S.polar==='dia'?'☀️ sin puesta':'🌑 sin salida'}</span>`:`<span class="sol">🌅 ${hhmm(S.sale)}<br>🌇 ${hhmm(S.pone)}</span>`;
+    const lluvia=d?`<span class="mini" style="color:${d.total==null?'inherit':(sel?'#fff':color(d.total))}">${d.total==null?'–':d.total+' %'}</span>`:'';
+    return `<button class="dia${d?'':' sinprev'}" aria-pressed="${sel}" data-i="${i}"><b>${f===hoy?'Hoy':DIAS_SEM[dt.getDay()]}</b><span>${fechaTxt(f)}${dt.getFullYear()!==new Date().getFullYear()?' '+String(dt.getFullYear()).slice(2):''}</span>${lluvia}${tm?`<span class="tmm"><span class="mx">${Math.round(tm.max)}°</span> / <span class="mn">${Math.round(tm.min)}°</span></span>`:''}${st}</button>`;
   }).join('');
-  $('dias').querySelectorAll('.dia').forEach(b=>b.onclick=()=>{diaSel=+b.dataset.i; pintar();});
-  const d=RES[diaSel]; if(!d){ $('tabla').innerHTML='<div class="cargando">Sin datos.</div>'; return; }
-  const tD=tDia(d.fecha);
+  cont.scrollLeft=x;
+  cont.querySelectorAll('.dia').forEach(b=>b.onclick=()=>elegir(+b.dataset.i));
+}
+function elegir(i){
+  diaSel=Math.max(0,i); if(diaSel>NDIAS-10) NDIAS=diaSel+60;
+  pintar();
+  const b=$('dias').querySelector(`.dia[data-i="${diaSel}"]`); if(b) b.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+}
+function pintar(){
+  pintarDias();
+  const f=fechas()[diaSel], d=RES.find(r=>r.fecha===f), tD=tDia(f), S=sol(f,LUGAR.lat,LUGAR.lon);
+  const solH=S.polar?`<p class="durac">${S.polar==='dia'?'☀️ Sol de medianoche: no se pone en todo el día':'🌑 Noche polar: el sol no sale'}</p>`
+    :`<div class="solbox"><div><span>🌅 Salida del sol</span><b>${hhmm(S.sale)}</b></div><div><span>🌇 Puesta del sol</span><b>${hhmm(S.pone)}</b></div></div><p class="durac">Horas de luz: ${Math.floor(S.dur/60)} h ${Math.round(S.dur%60)} min</p>`;
+  const cab=`<h2>${LUGAR.nombre}, ${fechaTxt(f,true)}${new Date(f+'T12:00:00').getFullYear()!==new Date().getFullYear()?' de '+f.slice(0,4):''}</h2>${tD?`<div class="temps"><div class="mx"><span>🌡️ Máxima</span><b>${Math.round(tD.max)} °C</b></div><div class="mn"><span>🌡️ Mínima</span><b>${Math.round(tD.min)} °C</b></div></div>`:''}${solH}`;
+  if(!d){
+    $('tabla').innerHTML=cab+'<p class="sub">Sin previsión de lluvia para esta fecha: solo hay previsión fiable para los próximos 7 días.</p>';
+    $('horas').hidden=true; return;
+  }
   let filas=FRANJAS.map((F,i)=>`<tr><td class="franja"><b>${F.n}</b><span>${F.h}</span></td>${celdaP(d.fr[i].p)}${celdaMM(d.fr[i].mm)}</tr>`).join('');
   filas+=`<tr class="total"><td class="franja"><b>Día completo</b><span>${fechaTxt(d.fecha)}</span></td><td class="num">${d.total==null?'–':d.total+' %'}</td>${celdaMM(d.mmTot)}</tr>`;
-  $('tabla').innerHTML=`<h2>${LUGAR.nombre}, ${fechaTxt(d.fecha,true)}</h2>${tD?`<div class="temps"><div class="mx"><span>🌡️ Máxima</span><b>${Math.round(tD.max)} °C</b></div><div class="mn"><span>🌡️ Mínima</span><b>${Math.round(tD.min)} °C</b></div></div>`:''}<p class="sub">Probabilidad de lluvia y cantidad prevista por franjas</p>
+  $('tabla').innerHTML=cab+`<p class="sub">Probabilidad de lluvia y cantidad prevista por franjas</p>
     <table><thead><tr><th>Franja</th><th>Probabilidad</th><th>Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`;
   $('horasBody').innerHTML='<table>'+d.idx.map(i=>{const p=DATOS.prob[i];return `<tr><td>${DATOS.horas[i].slice(11,16)}</td><td style="color:${p==null?'inherit':color(p)}">${p==null?'–':p+' %'}</td><td>${mmTxt(DATOS.mm[i])} mm</td></tr>`;}).join('')+'</table>';
   $('horas').hidden=false;
 }
+$('btnAnt').onclick=()=>elegir(diaSel-1);
+$('btnSig').onclick=()=>elegir(diaSel+1);
+$('btnHoy').onclick=()=>elegir(0);
+$('dias').addEventListener('scroll',()=>{ const c=$('dias'); if(c.scrollLeft+c.clientWidth>c.scrollWidth-400){ NDIAS+=60; pintarDias(); } });
+$('dias').addEventListener('wheel',e=>{ if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){ $('dias').scrollLeft+=e.deltaY; e.preventDefault(); } },{passive:false});
 
 async function iniciar(forzar){
   $('lugar').textContent=LUGAR.nombre+(LUGAR.gps?' 📍':''); pintarFav();
